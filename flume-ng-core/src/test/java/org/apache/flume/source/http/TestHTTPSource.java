@@ -45,9 +45,7 @@ import javax.net.ssl.*;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.lang.reflect.Type;
-import java.net.HttpURLConnection;
-import java.net.ServerSocket;
-import java.net.URL;
+import java.net.*;
 import java.security.SecureRandom;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
@@ -315,6 +313,15 @@ public class TestHTTPSource {
 
   @Test
   public void testHttps() throws Exception {
+    doTestHttps(null);
+  }
+
+  @Test (expected = javax.net.ssl.SSLHandshakeException.class)
+  public void testHttpsSSLv3() throws Exception {
+    doTestHttps("SSLv3");
+  }
+
+  public void doTestHttps(String protocol) throws Exception {
     Type listType = new TypeToken<List<JSONEvent>>() {
     }.getType();
     List<JSONEvent> events = Lists.newArrayList();
@@ -354,7 +361,9 @@ public class TestHTTPSource {
         }
       }};
 
-      SSLContext sc=null;
+
+      SSLContext sc = null;
+      javax.net.ssl.SSLSocketFactory factory = null;
       if (System.getProperty("java.vendor").contains("IBM")) {
         sc = SSLContext.getInstance("SSL_TLS");
       } else {
@@ -367,7 +376,13 @@ public class TestHTTPSource {
         }
       };
       sc.init(null, trustAllCerts, new SecureRandom());
-      HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+
+      if(protocol != null) {
+        factory = new DisabledProtocolsSocketFactory(sc.getSocketFactory(), protocol);
+      } else {
+        factory = sc.getSocketFactory();
+      }
+      HttpsURLConnection.setDefaultSSLSocketFactory(factory);
       HttpsURLConnection.setDefaultHostnameVerifier(
         SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
       URL sslUrl = new URL("https://0.0.0.0:" + sslPort);
@@ -390,8 +405,6 @@ public class TestHTTPSource {
 
     transaction.commit();
     transaction.close();
-    } catch (Exception exception) {
-      Assert.fail("Exception not expected");
     } finally {
       httpsURLConnection.disconnect();
     }
@@ -471,6 +484,70 @@ public class TestHTTPSource {
     public ResultWrapper(HttpResponse resp, List<JSONEvent> events){
       this.response = resp;
       this.events = events;
+    }
+  }
+
+  private class DisabledProtocolsSocketFactory extends javax.net.ssl.SSLSocketFactory {
+
+    private final javax.net.ssl.SSLSocketFactory socketFactory;
+    private final String[] protocols;
+
+    DisabledProtocolsSocketFactory(javax.net.ssl.SSLSocketFactory factory, String protocol) {
+      this.socketFactory = factory;
+      protocols = new String[1];
+      protocols[0] = protocol;
+    }
+
+    @Override
+    public String[] getDefaultCipherSuites() {
+      return socketFactory.getDefaultCipherSuites();
+    }
+
+    @Override
+    public String[] getSupportedCipherSuites() {
+      return socketFactory.getSupportedCipherSuites();
+    }
+
+    @Override
+    public Socket createSocket(Socket socket, String s, int i, boolean b)
+      throws IOException {
+      SSLSocket sc = (SSLSocket) socketFactory.createSocket(socket, s, i, b);
+      sc.setEnabledProtocols(protocols);
+      return sc;
+    }
+
+    @Override
+    public Socket createSocket(String s, int i)
+      throws IOException, UnknownHostException {
+      SSLSocket sc = (SSLSocket)socketFactory.createSocket(s, i);
+      sc.setEnabledProtocols(protocols);
+      return sc;
+    }
+
+    @Override
+    public Socket createSocket(String s, int i, InetAddress inetAddress, int i2)
+      throws IOException, UnknownHostException {
+      SSLSocket sc = (SSLSocket)socketFactory.createSocket(s, i, inetAddress,
+        i2);
+      sc.setEnabledProtocols(protocols);
+      return sc;
+    }
+
+    @Override
+    public Socket createSocket(InetAddress inetAddress, int i)
+      throws IOException {
+      SSLSocket sc = (SSLSocket)socketFactory.createSocket(inetAddress, i);
+      sc.setEnabledProtocols(protocols);
+      return sc;
+    }
+
+    @Override
+    public Socket createSocket(InetAddress inetAddress, int i,
+      InetAddress inetAddress2, int i2) throws IOException {
+      SSLSocket sc = (SSLSocket)socketFactory.createSocket(inetAddress, i,
+        inetAddress2, i2);
+      sc.setEnabledProtocols(protocols);
+      return sc;
     }
   }
 }

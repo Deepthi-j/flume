@@ -35,13 +35,13 @@ import org.mortbay.jetty.servlet.ServletHolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.SSLServerSocket;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.net.ServerSocket;
+import java.util.*;
 
 /**
  * A source which accepts Flume Events by HTTP POST and GET. GET should be used
@@ -93,6 +93,7 @@ public class HTTPSource extends AbstractSource implements
   private volatile String keyStorePath;
   private volatile String keyStorePassword;
   private volatile Boolean sslEnabled;
+  private final List<String> excludedProtocols = new LinkedList<String>();
 
 
   @Override
@@ -120,7 +121,18 @@ public class HTTPSource extends AbstractSource implements
         Preconditions.checkArgument(keyStorePath != null && !keyStorePath.isEmpty(),
                                         "Keystore is required for SSL Conifguration" );
         keyStorePassword = context.getString(HTTPSourceConfigurationConstants.SSL_KEYSTORE_PASSWORD);
-        Preconditions.checkArgument(keyStorePassword != null, "Keystore password is required for SSL Configuration");
+        Preconditions.checkArgument(keyStorePassword != null,
+          "Keystore password is required for SSL Configuration");
+        String excludeProtocolsStr = context.getString(HTTPSourceConfigurationConstants
+          .EXCLUDE_PROTOCOLS);
+        if (excludeProtocolsStr == null) {
+          excludedProtocols.add("SSLv3");
+        } else {
+          excludedProtocols.addAll(Arrays.asList(excludeProtocolsStr.split(" ")));
+          if (!excludedProtocols.contains("SSLv3")) {
+            excludedProtocols.add("SSLv3");
+          }
+        }
       }
 
 
@@ -172,7 +184,7 @@ public class HTTPSource extends AbstractSource implements
 
 
     if (sslEnabled) {
-      SslSocketConnector sslSocketConnector = new SslSocketConnector();
+      SslSocketConnector sslSocketConnector = new HTTPSourceSocketConnector(excludedProtocols);
       sslSocketConnector.setKeystore(keyStorePath);
       sslSocketConnector.setKeyPassword(keyStorePassword);
       sslSocketConnector.setReuseAddress(true);
@@ -269,6 +281,31 @@ public class HTTPSource extends AbstractSource implements
     public void doGet(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
       doPost(request, response);
+    }
+  }
+
+  private static class HTTPSourceSocketConnector extends SslSocketConnector {
+
+    private final List<String> excludedProtocols;
+    HTTPSourceSocketConnector(List<String> excludedProtocols) {
+      this.excludedProtocols = excludedProtocols;
+    }
+
+    @Override
+    public ServerSocket newServerSocket(String host, int port,
+      int backlog) throws IOException {
+      SSLServerSocket socket = (SSLServerSocket)super.newServerSocket(host,
+        port, backlog);
+      String[] protocols = socket.getEnabledProtocols();
+      List<String> newProtocols = new ArrayList<String>(protocols.length);
+      for(String protocol: protocols) {
+        if (!excludedProtocols.contains(protocol)) {
+          newProtocols.add(protocol);
+        }
+      }
+      socket.setEnabledProtocols(
+        newProtocols.toArray(new String[newProtocols.size()]));
+      return socket;
     }
   }
 }

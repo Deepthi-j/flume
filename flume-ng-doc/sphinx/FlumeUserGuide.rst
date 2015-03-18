@@ -15,7 +15,7 @@
 
 
 ======================================
-Flume 1.5.0.1 User Guide
+Flume 1.5.2 User Guide
 ======================================
 
 Introduction
@@ -688,26 +688,27 @@ When paired with the built-in Avro Sink on another (previous hop) Flume agent,
 it can create tiered collection topologies.
 Required properties are in **bold**.
 
-==================   ===========  ===================================================
-Property Name        Default      Description
-==================   ===========  ===================================================
+==================   ================  ===================================================
+Property Name        Default           Description
+==================   ================  ===================================================
 **channels**         --
-**type**             --           The component type name, needs to be ``avro``
-**bind**             --           hostname or IP address to listen on
-**port**             --           Port # to bind to
-threads              --           Maximum number of worker threads to spawn
+**type**             --                The component type name, needs to be ``avro``
+**bind**             --                hostname or IP address to listen on
+**port**             --                Port # to bind to
+threads              --                Maximum number of worker threads to spawn
 selector.type
 selector.*
-interceptors         --           Space-separated list of interceptors
+interceptors         --                Space-separated list of interceptors
 interceptors.*
-compression-type     none         This can be "none" or "deflate".  The compression-type must match the compression-type of matching AvroSource
-ssl                  false        Set this to true to enable SSL encryption. You must also specify a "keystore" and a "keystore-password".
-keystore             --           This is the path to a Java keystore file. Required for SSL.
-keystore-password    --           The password for the Java keystore. Required for SSL.
-keystore-type        JKS          The type of the Java keystore. This can be "JKS" or "PKCS12".
-ipFilter             false        Set this to true to enable ipFiltering for netty
-ipFilter.rules       --           Define N netty ipFilter pattern rules with this config.
-==================   ===========  ===================================================
+compression-type     none              This can be "none" or "deflate".  The compression-type must match the compression-type of matching AvroSource
+ssl                  false             Set this to true to enable SSL encryption. You must also specify a "keystore" and a "keystore-password".
+keystore             --                This is the path to a Java keystore file. Required for SSL.
+keystore-password    --                The password for the Java keystore. Required for SSL.
+keystore-type        JKS               The type of the Java keystore. This can be "JKS" or "PKCS12".
+exclude-protocols    SSLv3             Space-separated list of SSL/TLS protocols to exclude. SSLv3 will always be excluded in addition to the protocols specified.
+ipFilter             false             Set this to true to enable ipFiltering for netty
+ipFilter.rules       --                Define N netty ipFilter pattern rules with this config.
+==================   ================  ===================================================
 
 Example for agent named a1:
 
@@ -1291,22 +1292,23 @@ unavailable status.
 All events sent in one post request are considered to be one batch and
 inserted into the channel in one transaction.
 
-==============  ============================================  ====================================================================
-Property Name   Default                                       Description
-==============  ============================================  ====================================================================
-**type**                                                      The component type name, needs to be ``http``
-**port**        --                                            The port the source should bind to.
-bind            0.0.0.0                                       The hostname or IP address to listen on
-handler         ``org.apache.flume.source.http.JSONHandler``  The FQCN of the handler class.
-handler.*       --                                            Config parameters for the handler
-selector.type   replicating                                   replicating or multiplexing
-selector.*                                                    Depends on the selector.type value
-interceptors    --                                            Space-separated list of interceptors
+=================  ============================================  =====================================================================================
+Property Name      Default                                       Description
+=================  ============================================  =====================================================================================
+**type**                                                         The component type name, needs to be ``http``
+**port**           --                                            The port the source should bind to.
+bind               0.0.0.0                                       The hostname or IP address to listen on
+handler            ``org.apache.flume.source.http.JSONHandler``  The FQCN of the handler class.
+handler.*          --                                            Config parameters for the handler
+selector.type      replicating                                   replicating or multiplexing
+selector.*                                                       Depends on the selector.type value
+interceptors       --                                            Space-separated list of interceptors
 interceptors.*
-enableSSL       false                                         Set the property true, to enable SSL
-keystore                                                      Location of the keystore includng keystore file name
-keystorePassword                                              Keystore password
-==================================================================================================================================
+enableSSL          false                                         Set the property true, to enable SSL. *HTTP Source does not support SSLv3.*
+excludeProtocols   SSLv3                                         Space-separated list of SSL/TLS protocols to exclude. SSLv3 is always excluded.
+keystore                                                         Location of the keystore includng keystore file name
+keystorePassword                                                 Keystore password
+======================================================================================================================================================
 
 For example, a http source for agent named a1:
 
@@ -1660,7 +1662,7 @@ batches of the configured batch size.
 Required properties are in **bold**.
 
 ==========================   =====================================================  ===========================================================================================
-Property Name                Default  Description
+Property Name                Default                                                Description
 ==========================   =====================================================  ===========================================================================================
 **channel**                  --
 **type**                     --                                                     The component type name, needs to be ``avro``.
@@ -1677,6 +1679,7 @@ trust-all-certs              false                                              
 truststore                   --                                                     The path to a custom Java truststore file. Flume uses the certificate authority information in this file to determine whether the remote Avro Source's SSL authentication credentials should be trusted. If not specified, the default Java JSSE certificate authority files (typically "jssecacerts" or "cacerts" in the Oracle JRE) will be used.
 truststore-password          --                                                     The password for the specified truststore.
 truststore-type              JKS                                                    The type of the Java truststore. This can be "JKS" or other supported Java truststore type.
+exclude-protocols            SSLv2Hello SSLv3                                       Space-separated list of SSL/TLS protocols to exclude
 maxIoWorkers                 2 * the number of available processors in the machine  The maximum number of I/O worker threads. This is configured on the NettyAvroRpcClient NioClientSocketChannelFactory.
 ==========================   =====================================================  ===========================================================================================
 
@@ -2944,7 +2947,7 @@ Log4J Appender
 
 Appends Log4j events to a flume agent's avro source. A client using this
 appender must have the flume-ng-sdk in the classpath (eg,
-flume-ng-sdk-1.5.0.1.jar).
+flume-ng-sdk-1.5.2.jar).
 Required properties are in **bold**.
 
 =====================  =======  ==================================================================================
@@ -3008,7 +3011,7 @@ Load Balancing Log4J Appender
 
 Appends Log4j events to a list of flume agent's avro source. A client using this
 appender must have the flume-ng-sdk in the classpath (eg,
-flume-ng-sdk-1.5.0.1.jar). This appender supports a round-robin and random
+flume-ng-sdk-1.5.2.jar). This appender supports a round-robin and random
 scheme for performing the load balancing. It also supports a configurable backoff
 timeout so that down agents are removed temporarily from the set of hosts
 Required properties are in **bold**.

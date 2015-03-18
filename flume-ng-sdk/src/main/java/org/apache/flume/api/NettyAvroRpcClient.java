@@ -25,6 +25,8 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -94,6 +96,7 @@ implements RpcClient {
   private String truststore;
   private String truststorePassword;
   private String truststoreType;
+  private final List<String> excludeProtocols = new LinkedList<String>();
 
   private Transceiver transceiver;
   private AvroSourceProtocol.Callback avroClient;
@@ -144,12 +147,13 @@ implements RpcClient {
             bossExecutor, workerExecutor,
             enableDeflateCompression, enableSsl, trustAllCerts,
             compressionLevel, truststore, truststorePassword, truststoreType,
-            maxIoWorkers);
+            excludeProtocols, maxIoWorkers);
         } else {
           socketChannelFactory = new SSLCompressionChannelFactory(
             bossExecutor, workerExecutor,
             enableDeflateCompression, enableSsl, trustAllCerts,
-            compressionLevel, truststore, truststorePassword, truststoreType);
+            compressionLevel, truststore, truststorePassword, truststoreType,
+            excludeProtocols);
         }
       } else {
         if (maxIoWorkers >= 1) {
@@ -603,6 +607,16 @@ implements RpcClient {
         RpcClientConfigurationConstants.CONFIG_TRUSTSTORE_PASSWORD);
     truststoreType = properties.getProperty(
         RpcClientConfigurationConstants.CONFIG_TRUSTSTORE_TYPE, "JKS");
+    String excludeProtocolsStr = properties.getProperty(
+      RpcClientConfigurationConstants.CONFIG_EXCLUDE_PROTOCOLS);
+    if (excludeProtocolsStr == null) {
+      excludeProtocols.add("SSLv3");
+    } else {
+      excludeProtocols.addAll(Arrays.asList(excludeProtocolsStr.split(" ")));
+      if (!excludeProtocols.contains("SSLv3")) {
+        excludeProtocols.add("SSLv3");
+      }
+    }
 
     String maxIoWorkersStr = properties.getProperty(
       RpcClientConfigurationConstants.MAX_IO_WORKERS);
@@ -669,11 +683,12 @@ implements RpcClient {
     private final String truststore;
     private final String truststorePassword;
     private final String truststoreType;
+    private final List<String> excludeProtocols;
 
     public SSLCompressionChannelFactory(Executor bossExecutor, Executor workerExecutor,
         boolean enableCompression, boolean enableSsl, boolean trustAllCerts,
         int compressionLevel, String truststore, String truststorePassword,
-        String truststoreType) {
+        String truststoreType, List<String> excludeProtocols) {
       super(bossExecutor, workerExecutor);
       this.enableCompression = enableCompression;
       this.enableSsl = enableSsl;
@@ -682,12 +697,13 @@ implements RpcClient {
       this.truststore = truststore;
       this.truststorePassword = truststorePassword;
       this.truststoreType = truststoreType;
+      this.excludeProtocols = excludeProtocols;
     }
 
     public SSLCompressionChannelFactory(Executor bossExecutor, Executor workerExecutor,
         boolean enableCompression, boolean enableSsl, boolean trustAllCerts,
         int compressionLevel, String truststore, String truststorePassword,
-        String truststoreType, int maxIOWorkers) {
+        String truststoreType, List<String> excludeProtocols, int maxIOWorkers) {
       super(bossExecutor, workerExecutor, maxIOWorkers);
       this.enableCompression = enableCompression;
       this.enableSsl = enableSsl;
@@ -696,6 +712,7 @@ implements RpcClient {
       this.truststore = truststore;
       this.truststorePassword = truststorePassword;
       this.truststoreType = truststoreType;
+      this.excludeProtocols = excludeProtocols;
     }
 
     @Override
@@ -735,6 +752,15 @@ implements RpcClient {
           sslContext.init(null, managers, null);
           SSLEngine sslEngine = sslContext.createSSLEngine();
           sslEngine.setUseClientMode(true);
+          List<String> enabledProtocols = new ArrayList<String>();
+          for (String protocol : sslEngine.getEnabledProtocols()) {
+            if (!excludeProtocols.contains(protocol)) {
+              enabledProtocols.add(protocol);
+            }
+          }
+          sslEngine.setEnabledProtocols(enabledProtocols.toArray(new String[0]));
+          logger.info("SSLEngine protocols enabled: " +
+              Arrays.asList(sslEngine.getEnabledProtocols()));
           // addFirst() will make SSL handling the first stage of decoding
           // and the last stage of encoding this must be added after
           // adding compression handling above
